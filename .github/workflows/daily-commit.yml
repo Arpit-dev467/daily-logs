@@ -1,0 +1,54 @@
+name: Daily Commit
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  daily-log:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Generate daily log files
+        shell: bash
+        run: |
+          mkdir -p logs
+
+          timestamp="$(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          day_of_year="$(date -u +"%j")"
+          week_number="$(date -u +"%V")"
+          runner_os="${RUNNER_OS}"
+          log_date="$(date -u +"%Y-%m-%d")"
+
+          printf '[%s] day_of_year=%s week_number=%s runner_os=%s\n' \
+            "$timestamp" "$day_of_year" "$week_number" "$runner_os" >> logs/daily.log
+
+          printf '# Latest Daily Log\n\n' > logs/latest.md
+          printf -- '- Date: %s\n' "$log_date" >> logs/latest.md
+          printf -- '- Time (UTC): %s\n' "$timestamp" >> logs/latest.md
+          printf -- '- Day of Year: %s\n' "$day_of_year" >> logs/latest.md
+          printf -- '- Week Number: %s\n' "$week_number" >> logs/latest.md
+          printf -- '- Runner OS: %s\n' "$runner_os" >> logs/latest.md
+
+      - name: Commit and push logs if changed
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add logs/
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          commit_date="$(date -u +"%Y-%m-%d")"
+          git commit -m "chore: daily log ${commit_date}"
+          git push
